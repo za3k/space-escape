@@ -6,10 +6,22 @@ class Game {
         this.pixelsPerMeter = 10
         this.spaceship = new Spaceship({x: 50, y: 50})
         this.addObject(this.spaceship)
-        for (var i=-100; i<100; i+=10)
-            for (var j=-100; j<100; j+=10)
-                this.addObject(new Asteroid({x: i*2, y: j}))
+
+        // Initialize endless asteroid field
+        for (let i = 0; i < 50; i++) {
+            const position = Asteroid.randomOutsidePosition(this);
+            this.addObject(new Asteroid(position));
+        }
         
+        // Starting asteroids nearby so you can tell where you are
+        for (var i = -10; i <= 10; i += 5) {
+            for (var j = -10; j <= 10; j += 5) {
+                if (i == 0 && j == 0) continue
+                this.addObject(new Asteroid({x: i, y: j}))
+            }
+        }
+
+        $(".game-over").hide()
         this.mainLoop();
         
         $(document).on("keydown", (e) => this.keysChanged(e, true));
@@ -33,19 +45,30 @@ class Game {
     
     mainLoop() {
         var t = +Date.now()
-        setInterval(() => {
+        this.interval = setInterval(() => {
             const newT = +Date.now()
             const elapsed = newT - t
             t = newT
             this.tick(elapsed/1000.0)
             this.updateFps(1000.0/elapsed)
-        }, 50)
+        }, 10)
     }
     
     addObject(obj) {
         this.objects.push(obj)
         this.e.append(obj.e)
     }
+    
+    stop() {
+        //clearInterval(this.interval)
+        //$(".gameOver").show()
+    }
+    
+    playSound(url) {
+        // TODO
+    }
+    
+    removeObject(obj) { o.destroy() }
     
     keysChanged(event, isPressed) {
         this.keys[event.key.toLowerCase()] = isPressed
@@ -59,12 +82,31 @@ class Game {
             pixelsPerMeter: this.pixelsPerMeter,
         }
         fov.screenCenter = new Vector(fov.bounds.width/2, fov.bounds.height/2)
+        fov.metersToScreen = function(posMeters) {
+            return posMeters.clone().subtract(fov.center).rotateBy(fov.rotation).scale(fov.pixelsPerMeter).add(fov.screenCenter)
+        }
+        fov.screenToMeters = function(posPx) {
+            return posPx.subtract(fov.screenCenter).scale(1/fov.pixelsPerMeter).rotateBy(-fov.rotation).add(fov.center)
+        }
         return fov
     }
     
-    tick(elapsed) {
+    tick(elapsed) { // Main game loop
+        // Physics tick
+        for (let o of this.objects) 
+            if (!o.removed) o.tick(this, elapsed)
+        
+        // Collision detection
+        for (let o of this.objects) {
+            if (o == this.spaceship) continue;
+            if (o.collides(this.spaceship)) this.spaceship.collide(g, o)
+        }
+        
+        // Filter out removed objects
+        this.objects = this.objects.filter(o => !o.removed)
+        
+        // Render tick
         const fov = this.calcFov()
-        for (let o of this.objects) o.tick(this, elapsed)
         for (let o of this.objects) o.render(fov)
     }
 }
@@ -74,8 +116,12 @@ class GameObject {
         this.pos = new Vector(pos)
     }
     tick(g, elapsed) {}
+    destroy() { this.removed = true }
+    
+    collides(other) { return false; }
+    collide(other) { }
     render(fov) {
-        const displayPos = this.pos.clone().subtract(fov.center).rotateBy(fov.rotation).scale(fov.pixelsPerMeter).add(fov.screenCenter)
+        const displayPos = fov.metersToScreen(this.pos)
         this.e.css({ left: `${displayPos.x}px`, top: `${displayPos.y}px` })
     }
 }
@@ -83,6 +129,7 @@ class Spaceship extends GameObject {
     constructor(pos) {
         super(pos)
         this.e = $(`<div class="spaceship"></div>`)
+        this.radius = this.e.width()/2
         this.velocity = {x: 0, y: 0} // meters/s each
         this.rotationPos = 0 // radians
         this.speed = 30 // 
@@ -94,6 +141,10 @@ class Spaceship extends GameObject {
         this.maxSpeed = 10 // meters/s
         this.linearDrag = -2 // meters/s/s
         this.rotationalDrag = -2 // radians/s/s
+    }
+    
+    collides(other) {
+        return other.pos.subtract(this.pos).magnitude() <= this.radius
     }
     
     tick(g, elapsed){
@@ -114,12 +165,33 @@ class Spaceship extends GameObject {
         //this.rotation -= 5 * elapsed * rotationImpulse * this.rotationalAcceleration
         //this.velocity = this.velocity.add(this.acceleration * direction) * elapsed
     }
+    
+    collide(g, o) {
+        g.stop()
+        g.playSound("explode.mp3")
+    }
 }
 
 class Asteroid extends GameObject {
     constructor(pos) {
         super(pos)
         this.e = $(`<div class="asteroid"></div>`)
+    }
+
+
+    static randomOutsidePosition(g) {
+        const width = g.e.width(), height = g.e.height()
+        const side = Math.floor(Math.random() * 4);
+        switch (side) {
+            case 0: // Top
+                return { x: Math.random() * width, y: -50 };
+            case 1: // Bottom
+                return { x: Math.random() * width, y: height + 50 };
+            case 2: // Left
+                return { x: -50, y: Math.random() * height };
+            case 3: // Right
+                return { x: width + 50, y: Math.random() * height };
+        }
     }
 }
 

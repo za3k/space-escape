@@ -57,3 +57,17 @@ html, body {
     text-align: center;
     z-index: 2;
 }
+
+.game-over {
+    position: fixed;
+    color: lightpink;
+    font-size: 50pt;
+    background-color: black;
+    border: 5px solid darkgray;
+    text-align: center;
+    left: 50%;
+    top: 80%;
+    padding: 1em 2em;
+    transform: translate(-50%,-50%);
+    display: none;
+}
