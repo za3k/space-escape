@@ -8,19 +8,12 @@ class Game {
         this.addObject(this.spaceship)
 
         // Initialize endless asteroid field
-        for (let i = 0; i < 50; i++) {
-            const position = Asteroid.randomOutsidePosition(this);
+        for (let i = 0; i < 400; i++) {
+            const position = Asteroid.randomPosition(this).scale(2);
+            
             this.addObject(new Asteroid(position));
         }
         
-        // Starting asteroids nearby so you can tell where you are
-        for (var i = -10; i <= 10; i += 5) {
-            for (var j = -10; j <= 10; j += 5) {
-                if (i == 0 && j == 0) continue
-                this.addObject(new Asteroid({x: i, y: j}))
-            }
-        }
-
         $(".game-over").hide()
         this.mainLoop();
         
@@ -60,8 +53,8 @@ class Game {
     }
     
     stop() {
-        //clearInterval(this.interval)
-        //$(".gameOver").show()
+        clearInterval(this.interval)
+        $(".game-over").show()
     }
     
     playSound(url) {
@@ -75,6 +68,7 @@ class Game {
     }
     
     calcFov() {
+        if (this._fov) return this._fov
         var fov = {
             center: this.spaceship.pos,
             rotation: this.spaceship.rotationPos - Math.PI/2,
@@ -83,12 +77,14 @@ class Game {
         }
         fov.screenCenter = new Vector(fov.bounds.width/2, fov.bounds.height/2)
         fov.metersToScreen = function(posMeters) {
+            if (!(posMeters instanceof Vector)) throw Exception("Please pass metersToScreen a vector")
             return posMeters.clone().subtract(fov.center).rotateBy(fov.rotation).scale(fov.pixelsPerMeter).add(fov.screenCenter)
         }
         fov.screenToMeters = function(posPx) {
+            if (!(posPx instanceof Vector)) throw Exception("Please pass screenToMeters a vector")
             return posPx.subtract(fov.screenCenter).scale(1/fov.pixelsPerMeter).rotateBy(-fov.rotation).add(fov.center)
         }
-        return fov
+        return this._fov = fov
     }
     
     tick(elapsed) { // Main game loop
@@ -99,8 +95,11 @@ class Game {
         // Collision detection
         for (let o of this.objects) {
             if (o == this.spaceship) continue;
-            if (o.collides(this.spaceship)) this.spaceship.collide(g, o)
+            if (o.collides(this.spaceship)) this.spaceship.collide(this, o)
         }
+        
+        // TODO: Timer
+        // TODO: Distance
         
         // Filter out removed objects
         this.objects = this.objects.filter(o => !o.removed)
@@ -119,7 +118,7 @@ class GameObject {
     destroy() { this.removed = true }
     
     collides(other) { return false; }
-    collide(other) { }
+    collide(g, other) { }
     render(fov) {
         const displayPos = fov.metersToScreen(this.pos)
         this.e.css({ left: `${displayPos.x}px`, top: `${displayPos.y}px` })
@@ -129,7 +128,6 @@ class Spaceship extends GameObject {
     constructor(pos) {
         super(pos)
         this.e = $(`<div class="spaceship"></div>`)
-        this.radius = this.e.width()/2
         this.velocity = {x: 0, y: 0} // meters/s each
         this.rotationPos = 0 // radians
         this.speed = 30 // 
@@ -143,9 +141,7 @@ class Spaceship extends GameObject {
         this.rotationalDrag = -2 // radians/s/s
     }
     
-    collides(other) {
-        return other.pos.subtract(this.pos).magnitude() <= this.radius
-    }
+    
     
     tick(g, elapsed){
         const keys = g.keys
@@ -161,6 +157,8 @@ class Spaceship extends GameObject {
         this.pos.y -= Math.sin(this.rotationPos) * this.speed * elapsed * forward;
         
         this.rotationPos -= 2 * elapsed * rotationImpulse
+
+        if (g._fov) delete g._fov // Delete cache
         
         //this.rotation -= 5 * elapsed * rotationImpulse * this.rotationalAcceleration
         //this.velocity = this.velocity.add(this.acceleration * direction) * elapsed
@@ -176,21 +174,50 @@ class Asteroid extends GameObject {
     constructor(pos) {
         super(pos)
         this.e = $(`<div class="asteroid"></div>`)
+        this.radius = 1
+        
+    }
+    
+    tick(g, elapsed) {
+        if (!(this.inBounds(g))) this.exitBounds(g)
+        this.e.width(g.pixelsPerMeter*this.radius*2)
+        this.e.height(g.pixelsPerMeter*this.radius*2)
     }
 
+    exitBounds(g) {
+        this.pos = Asteroid.randomOutsidePosition(g)
+    }
+
+    inBounds(g) {
+        const fov = g.calcFov()
+        const screenPos = fov.metersToScreen(this.pos)
+        return screenPos.x > -fov.bounds.width && screenPos.y > -fov.bounds.height && screenPos.x <= 2*fov.bounds.width && screenPos.y <= 2*fov.bounds.height
+    }
+
+    collides(other) {
+        const distance = other.pos.subtract(this.pos).magnitude()
+        return distance <= this.radius
+    }
+
+    static randomPosition(g) {
+        const fov = g.calcFov()
+        const width = g.e.width(), height = g.e.height()
+        return fov.screenToMeters(new Vector({x: Math.random() * width, y: Math.random() * height }))
+    }
 
     static randomOutsidePosition(g) {
+        const fov = g.calcFov()
         const width = g.e.width(), height = g.e.height()
         const side = Math.floor(Math.random() * 4);
         switch (side) {
             case 0: // Top
-                return { x: Math.random() * width, y: -50 };
+                return fov.screenToMeters(new Vector({ x: Math.random() * width, y: -50 }))
             case 1: // Bottom
-                return { x: Math.random() * width, y: height + 50 };
+                return fov.screenToMeters(new Vector({ x: Math.random() * width, y: height + 50 }))
             case 2: // Left
-                return { x: -50, y: Math.random() * height };
+                return fov.screenToMeters(new Vector({ x: -50, y: Math.random() * height }))
             case 3: // Right
-                return { x: width + 50, y: Math.random() * height };
+                return fov.screenToMeters(new Vector({ x: width + 50, y: Math.random() * height }))
         }
     }
 }

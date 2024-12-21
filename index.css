@@ -27,6 +27,7 @@ html, body {
     height: 2em;
     border-radius: 1em;
     background-color: darkred;
+    transform: translate(-50%, -50%);
 }
 
 .distance {

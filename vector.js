@@ -44,7 +44,7 @@ class Vector {
     }
 
     static magnitude(v) {
-        return Math.sqrt(v.x ** 2 + v.y ** 2);
+        return Math.sqrt(v.x * v.x + v.y * v.y);
     }
 
     static normalize(v) {
