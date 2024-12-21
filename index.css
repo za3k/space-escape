@@ -1,0 +1,59 @@
+html, body {
+    margin: 0;
+    padding: 0;
+}
+
+.game {
+    width: 100%;
+    height: 100%;
+    background-color: black;
+    position: relative;
+    overflow: hidden;
+}
+
+.spaceship {
+    position: absolute;
+    width: 4em;
+    height: 4em;
+    background: url("ship.png");
+    background-repeat: round;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+}
+
+.asteroid {
+    position: absolute;
+    width: 2em;
+    height: 2em;
+    border-radius: 1em;
+    background-color: darkred;
+}
+
+.distance {
+    position: absolute;
+    right: 2px;
+    top: 2px;
+}
+
+.timer {
+    position: absolute;
+    right: 2px;
+    top: 2em;
+}
+
+.fps {
+    position: absolute;
+    right: 2px;
+    top: 4em;
+}
+
+.timer, .distance, .fps {
+    width: 5em;
+    height: 1em;
+    font-size: 24pt;
+    background: transparent;
+    color: white;
+    font-weight: bold;
+    text-align: center;
+    z-index: 2;
+}
